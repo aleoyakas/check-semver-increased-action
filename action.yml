@@ -1,23 +1,29 @@
-name: 'The name of your action here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'Check semantic version increased'
+description:
+  'Compares the current version number with the previous version number to
+  ensure either the major, minor or patch version has increased.'
+author: Aleo Yakas
 
-# Add your action's branding here. This will appear on the GitHub Marketplace.
-branding:
-  icon: 'heart'
-  color: 'red'
-
-# Define your inputs here.
 inputs:
-  milliseconds:
-    description: 'Your input description here'
+  current-version:
+    description: 'The current version of the product. e.g. 3.2.1'
     required: true
-    default: '1000'
 
-# Define your outputs here.
+  previous-version:
+    description: 'The previous version of the product. e.g. 3.2.0'
+    required: true
+
+  allow-pre-release:
+    description:
+      'Determines if the `current-version` can be a pre-release version.'
+    default: 'False'
+
 outputs:
-  time:
-    description: 'Your output description here'
+  is-version-increased:
+    description:
+      '`True` if the current version is greater than the previous version;
+      `False` if the current version is less than or equal to the previous
+      version.'
 
 runs:
   using: node20
