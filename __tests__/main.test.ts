@@ -1,89 +1,159 @@
-/**
- * Unit tests for the action's main functionality, src/main.ts
- *
- * These should be run as if the action was called from a workflow.
- * Specifically, the inputs listed in `action.yml` should be set as environment
- * variables following the pattern `INPUT_<INPUT_NAME>`.
- */
-
 import * as core from '@actions/core'
 import * as main from '../src/main'
 
 // Mock the action's main function
 const runMock = jest.spyOn(main, 'run')
 
-// Other utilities
-const timeRegex = /^\d{2}:\d{2}:\d{2}/
-
-// Mock the GitHub Actions core library
-let debugMock: jest.SpyInstance
 let errorMock: jest.SpyInstance
 let getInputMock: jest.SpyInstance
 let setFailedMock: jest.SpyInstance
 let setOutputMock: jest.SpyInstance
 
-describe('action', () => {
+type MockedInputs = {
+  currentVersion?: string
+  previousVersion?: string
+  allowPreRelease?: boolean
+}
+
+const getMockedInputs =
+  ({
+    currentVersion = '',
+    previousVersion = '',
+    allowPreRelease = false
+  }: MockedInputs) =>
+  (name: string): string => {
+    switch (name) {
+      case 'current-version':
+        return currentVersion
+      case 'previous-version':
+        return previousVersion
+      case 'allow-pre-release':
+        return `${allowPreRelease}`
+      default:
+        return ''
+    }
+  }
+
+describe('check-semver-increased-action', () => {
   beforeEach(() => {
     jest.clearAllMocks()
 
-    debugMock = jest.spyOn(core, 'debug').mockImplementation()
     errorMock = jest.spyOn(core, 'error').mockImplementation()
     getInputMock = jest.spyOn(core, 'getInput').mockImplementation()
     setFailedMock = jest.spyOn(core, 'setFailed').mockImplementation()
     setOutputMock = jest.spyOn(core, 'setOutput').mockImplementation()
   })
 
-  it('sets the time output', async () => {
-    // Set the action's inputs as return values from core.getInput()
-    getInputMock.mockImplementation((name: string): string => {
-      switch (name) {
-        case 'milliseconds':
-          return '500'
-        default:
-          return ''
-      }
-    })
+  test('the action completed with `is-version-increased` set to `false` if the versions are equal', async () => {
+    getInputMock.mockImplementation(
+      getMockedInputs({ currentVersion: '3.2.1', previousVersion: '3.2.1' })
+    )
 
     await main.run()
     expect(runMock).toHaveReturned()
-
-    // Verify that all of the core library functions were called correctly
-    expect(debugMock).toHaveBeenNthCalledWith(1, 'Waiting 500 milliseconds ...')
-    expect(debugMock).toHaveBeenNthCalledWith(
-      2,
-      expect.stringMatching(timeRegex)
-    )
-    expect(debugMock).toHaveBeenNthCalledWith(
-      3,
-      expect.stringMatching(timeRegex)
-    )
-    expect(setOutputMock).toHaveBeenNthCalledWith(
-      1,
-      'time',
-      expect.stringMatching(timeRegex)
-    )
+    expect(setOutputMock).toHaveBeenCalledWith('is-version-increased', false)
     expect(errorMock).not.toHaveBeenCalled()
   })
 
-  it('sets a failed status', async () => {
-    // Set the action's inputs as return values from core.getInput()
-    getInputMock.mockImplementation((name: string): string => {
-      switch (name) {
-        case 'milliseconds':
-          return 'this is not a number'
-        default:
-          return ''
-      }
-    })
+  test('the action completed with `is-version-increased` set to `false` if `current-version` is less than `previous-version`', async () => {
+    getInputMock.mockImplementation(
+      getMockedInputs({ currentVersion: '3.2.0', previousVersion: '3.2.1' })
+    )
 
     await main.run()
     expect(runMock).toHaveReturned()
+    expect(setOutputMock).toHaveBeenCalledWith('is-version-increased', false)
+    expect(errorMock).not.toHaveBeenCalled()
+  })
 
-    // Verify that all of the core library functions were called correctly
-    expect(setFailedMock).toHaveBeenNthCalledWith(
-      1,
-      'milliseconds not a number'
+  test('the action completed with `is-version-increased` set to `true` if `current-version` is greater than `previous-version`', async () => {
+    getInputMock.mockImplementation(
+      getMockedInputs({ currentVersion: '3.2.1', previousVersion: '3.2.0' })
     )
+
+    await main.run()
+    expect(runMock).toHaveReturned()
+    expect(setOutputMock).toHaveBeenCalledWith('is-version-increased', true)
+    expect(errorMock).not.toHaveBeenCalled()
+  })
+
+  test('the action fails when `current-version` is invalid', async () => {
+    getInputMock.mockImplementation(
+      getMockedInputs({ currentVersion: 'abc', previousVersion: '3.2.1' })
+    )
+
+    await main.run()
+    expect(runMock).toHaveReturned()
+    expect(setFailedMock).toHaveBeenCalledWith(
+      'currentVersion is not valid. previousVersion is valid.'
+    )
+  })
+
+  test('the action fails when `previous-version` is invalid', async () => {
+    getInputMock.mockImplementation(
+      getMockedInputs({ currentVersion: '3.2.1', previousVersion: 'abc' })
+    )
+
+    await main.run()
+    expect(runMock).toHaveReturned()
+    expect(setFailedMock).toHaveBeenCalledWith(
+      'currentVersion is valid. previousVersion is not valid.'
+    )
+  })
+
+  test('the action fails when both version are invalid', async () => {
+    getInputMock.mockImplementation(
+      getMockedInputs({ currentVersion: 'abc', previousVersion: 'efg' })
+    )
+
+    await main.run()
+    expect(runMock).toHaveReturned()
+    expect(setFailedMock).toHaveBeenCalledWith(
+      'currentVersion is not valid. previousVersion is not valid.'
+    )
+  })
+
+  test('the action fails when a pre-release version is supplied for the `current-version` and `allow-pre-release` has not been set', async () => {
+    getInputMock.mockImplementation(
+      getMockedInputs({
+        currentVersion: '3.2.1-alpha.1',
+        previousVersion: '3.2.0'
+      })
+    )
+
+    await main.run()
+    expect(runMock).toHaveReturned()
+    expect(setFailedMock).toHaveBeenCalledWith(
+      'currentVersion is not valid. previousVersion is valid.'
+    )
+  })
+
+  test('the action completes successfully when a pre-release is supplied for the `current-version` and `allow-pre-release` has been set to `true`', async () => {
+    getInputMock.mockImplementation(
+      getMockedInputs({
+        currentVersion: '3.2.1-alpha.1',
+        previousVersion: '3.2.0',
+        allowPreRelease: true
+      })
+    )
+
+    await main.run()
+    expect(runMock).toHaveReturned()
+    expect(setOutputMock).toHaveBeenCalledWith('is-version-increased', true)
+    expect(errorMock).not.toHaveBeenCalled()
+  })
+
+  test('the action completes successfully when a pre-release is supplied for the `previous-version` and `allow-pre-release` has not been set', async () => {
+    getInputMock.mockImplementation(
+      getMockedInputs({
+        currentVersion: '3.2.1',
+        previousVersion: '3.2.0-alpha.1'
+      })
+    )
+
+    await main.run()
+    expect(runMock).toHaveReturned()
+    expect(setOutputMock).toHaveBeenCalledWith('is-version-increased', true)
     expect(errorMock).not.toHaveBeenCalled()
   })
 })
