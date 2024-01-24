@@ -35,8 +35,35 @@ the `previous-version`
 ## Example usage
 
 ```yaml
-uses: aleoyakas/check-version-increased-action
-with:
-  current-version: 3.1.1
-  previous-version: 3.1.0
+name: front-end-checks
+
+on:
+  workflow_call:
+    inputs:
+      target-branch:
+        required: true
+        type: string
+
+jobs:
+  check-package-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: get-current-version
+        id: current-version
+        uses: ...
+
+      - name: get-previous-version
+        id: previous-version
+        uses: ...
+
+      - name: Check Version
+        uses: aleoyakas/check-semver-increased-action@v1
+        id: check-version
+        with:
+          current-version: ${{ steps.current-version.outputs.version }}
+          previous-version: ${{ steps.previous-version.outputs.version }}
+
+      - name: Echo Success
+        if: steps.action.outputs.is-version-increased == 'true'
+        run: echo Version has increased
 ```
