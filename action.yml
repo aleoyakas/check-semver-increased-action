@@ -28,3 +28,7 @@ outputs:
 runs:
   using: node20
   main: dist/index.js
+
+branding:
+  color: blue
+  icon: git-branch
